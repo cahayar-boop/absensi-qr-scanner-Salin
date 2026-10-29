@@ -4,90 +4,150 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Absensi QR Mahasiswa</title>
+  <title>Absensi QR Pangjajap 2026</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f6f8;
+      background: #f3f5f4;
       margin: 0;
       padding: 20px;
-      color: #222;
+      color: #202520;
     }
     main {
       max-width: 480px;
       margin: auto;
-      background: white;
       padding: 20px;
+      background: white;
       border-radius: 16px;
+      box-shadow: 0 3px 15px #0001;
     }
     h2 { margin-top: 0; }
     button {
-      padding: 12px;
       width: 100%;
-      margin-top: 12px;
       border: 0;
-      border-radius: 8px;
+      border-radius: 9px;
+      padding: 13px;
+      margin-top: 12px;
       background: #176b45;
       color: white;
       font-size: 16px;
+      cursor: pointer;
     }
-    #reader { margin-top: 16px; }
+    button:disabled { opacity: .6; }
     #status {
       margin-top: 16px;
       padding: 12px;
-      background: #eee;
       border-radius: 8px;
+      background: #eef1ef;
       overflow-wrap: anywhere;
     }
+    .note { color: #555; font-size: 14px; }
   </style>
 </head>
 <body>
 <main>
   <h2>Absensi QR Mahasiswa</h2>
-  <p>Scanner QR Pangjajap 2026</p>
+  <p>Pangjajap 2026 · ID acara PJP2026</p>
+  <p class="note">
+    Gunakan akun Universitas Siliwangi yang memiliki akses ke aplikasi absensi.
+  </p>
+
   <div id="reader"></div>
   <button id="start">Aktifkan Kamera</button>
+  <button id="stop" disabled>Matikan Kamera</button>
   <div id="status">Scanner belum diaktifkan.</div>
 </main>
 
 <script>
+  // Ganti dengan URL deployment Apps Script kamu yang berakhiran /exec.
+  const SCRIPT_URL = "TEMPEL_URL_WEB_APP_APPS_SCRIPT_DI_SINI";
+  const EVENT_ID = "PJP2026";
+
   const statusBox = document.getElementById("status");
+  const startButton = document.getElementById("start");
+  const stopButton = document.getElementById("stop");
+
   let scanner = null;
+  let running = false;
   let processing = false;
 
-  document.getElementById("start").onclick = async () => {
+  startButton.addEventListener("click", startScanner);
+  stopButton.addEventListener("click", stopScanner);
+
+  async function startScanner() {
+    if (SCRIPT_URL.includes("TEMPEL_URL")) {
+      statusBox.textContent =
+        "URL Apps Script belum diisi. Edit SCRIPT_URL terlebih dahulu.";
+      return;
+    }
+
+    if (!window.isSecureContext ||
+        !navigator.mediaDevices?.getUserMedia) {
+      statusBox.textContent =
+        "Kamera memerlukan browser yang mendukung HTTPS.";
+      return;
+    }
+
     try {
-      if (!window.isSecureContext) {
-        throw new Error("Buka halaman melalui GitHub Pages HTTPS.");
-      }
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Browser tidak mendukung akses kamera.");
-      }
-
       scanner = new Html5Qrcode("reader");
-
       await scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 230, height: 230 } },
-        async (decodedText) => {
-          if (processing) return;
-          processing = true;
-          statusBox.textContent =
-            "QR terbaca. Pengiriman ke sistem absensi belum dihubungkan.";
-          try {
-            await scanner.stop();
-          } catch (_) {}
-        },
+        onQrScanned,
         () => {}
       );
 
+      running = true;
+      startButton.disabled = true;
+      stopButton.disabled = false;
       statusBox.textContent = "Kamera aktif. Arahkan ke QR mahasiswa.";
-    } catch (error) {
-      statusBox.textContent = "Gagal: " + error.message;
+    } catch (err) {
+      statusBox.textContent = "Gagal membuka kamera: " + err.message;
     }
-  };
+  }
+
+  async function stopScanner() {
+    if (scanner && running) {
+      try {
+        await scanner.stop();
+        await scanner.clear();
+      } catch (_) {}
+    }
+
+    running = false;
+    processing = false;
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    statusBox.textContent = "Kamera dimatikan.";
+  }
+
+  async function onQrScanned(decodedText) {
+    if (processing) return;
+    processing = true;
+
+    statusBox.textContent =
+      "QR terbaca. Mengalihkan ke aplikasi absensi untuk memproses hasil scan...";
+
+    try {
+      if (scanner && running) {
+        await scanner.stop();
+        running = false;
+      }
+
+      const url = new URL(SCRIPT_URL);
+      url.searchParams.set("action", "scan");
+      url.searchParams.set("event", EVENT_ID);
+      url.searchParams.set("qr", decodedText.trim());
+
+      // Navigasi langsung agar browser dapat menangani login Google.
+      window.location.assign(url.toString());
+    } catch (err) {
+      statusBox.textContent = "Gagal menyiapkan pengiriman: " + err.message;
+      processing = false;
+      startButton.disabled = false;
+    }
+  }
 </script>
 </body>
 </html>
