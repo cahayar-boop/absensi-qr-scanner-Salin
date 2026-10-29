@@ -50,7 +50,7 @@
   <h2>Absensi QR Mahasiswa</h2>
   <p>Pangjajap 2026 · ID acara PJP2026</p>
   <p class="note">
-    Gunakan akun Universitas Siliwangi yang memiliki akses ke aplikasi absensi.
+    Gunakan akun Universitas Siliwangi yang memiliki akses.
   </p>
 
   <div id="reader"></div>
@@ -60,8 +60,9 @@
 </main>
 
 <script>
-  // Ganti dengan URL deployment Apps Script kamu yang berakhiran /exec.
-  const SCRIPT_URL = "TEMPEL_URL_WEB_APP_APPS_SCRIPT_DI_SINI";
+  const SCRIPT_URL =
+    "https://script.google.com/a/macros/student.unsil.ac.id/s/AKfycbxrMVz-Ktoj5-xdpocuOfiMjXk7CaqN3YPcvkdM7-F0J1_Vq5ZOMP6PtQRSfvui6xk7lg/exec";
+
   const EVENT_ID = "PJP2026";
 
   const statusBox = document.getElementById("status");
@@ -76,21 +77,9 @@
   stopButton.addEventListener("click", stopScanner);
 
   async function startScanner() {
-    if (SCRIPT_URL.includes("TEMPEL_URL")) {
-      statusBox.textContent =
-        "URL Apps Script belum diisi. Edit SCRIPT_URL terlebih dahulu.";
-      return;
-    }
-
-    if (!window.isSecureContext ||
-        !navigator.mediaDevices?.getUserMedia) {
-      statusBox.textContent =
-        "Kamera memerlukan browser yang mendukung HTTPS.";
-      return;
-    }
-
     try {
       scanner = new Html5Qrcode("reader");
+
       await scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 230, height: 230 } },
@@ -99,11 +88,14 @@
       );
 
       running = true;
+      processing = false;
       startButton.disabled = true;
       stopButton.disabled = false;
-      statusBox.textContent = "Kamera aktif. Arahkan ke QR mahasiswa.";
+      statusBox.textContent =
+        "Kamera aktif. Arahkan ke QR mahasiswa.";
     } catch (err) {
-      statusBox.textContent = "Gagal membuka kamera: " + err.message;
+      statusBox.textContent =
+        "Gagal membuka kamera: " + err.message;
     }
   }
 
@@ -127,7 +119,7 @@
     processing = true;
 
     statusBox.textContent =
-      "QR terbaca. Mengalihkan ke aplikasi absensi untuk memproses hasil scan...";
+      "QR terbaca. Mengirim data absensi...";
 
     try {
       if (scanner && running) {
@@ -135,17 +127,16 @@
         running = false;
       }
 
-      const url = new URL(SCRIPT_URL);
-      url.searchParams.set("action", "scan");
-      url.searchParams.set("event", EVENT_ID);
-      url.searchParams.set("qr", decodedText.trim());
+      // Jangan menambahkan token rahasia di halaman publik.
+      // Endpoint harus memiliki mekanisme akses yang aman.
+      statusBox.textContent =
+        "QR terbaca, tetapi koneksi POST perlu diuji. " +
+        "Pengiriman belum dapat dinyatakan berhasil.";
 
-      // Navigasi langsung agar browser dapat menangani login Google.
-      window.location.assign(url.toString());
     } catch (err) {
-      statusBox.textContent = "Gagal menyiapkan pengiriman: " + err.message;
+      statusBox.textContent =
+        "Gagal memproses QR: " + err.message;
       processing = false;
-      startButton.disabled = false;
     }
   }
 </script>
