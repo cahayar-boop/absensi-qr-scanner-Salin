@@ -14,6 +14,7 @@
       padding: 20px;
       color: #202520;
     }
+
     main {
       max-width: 480px;
       margin: auto;
@@ -22,6 +23,7 @@
       border-radius: 16px;
       box-shadow: 0 3px 15px #0001;
     }
+
     button {
       width: 100%;
       border: 0;
@@ -31,10 +33,14 @@
       background: #176b45;
       color: white;
       font-size: 16px;
+      cursor: pointer;
     }
+
     button:disabled {
       opacity: 0.6;
+      cursor: wait;
     }
+
     #status {
       margin-top: 16px;
       padding: 12px;
@@ -48,6 +54,7 @@
 <main>
   <h2>Absensi QR Mahasiswa</h2>
   <p>Pangjajap 2026 · PJP2026</p>
+
   <div id="reader"></div>
   <button id="start">Aktifkan Kamera</button>
   <button id="reset">Scan Berikutnya</button>
@@ -55,75 +62,110 @@
 </main>
 
 <script>
-  const API_URL = "https://script.google.com/a/macros/student.unsil.ac.id/s/AKfycbxrMVz-Ktoj5-xdpocuOfiMjXk7CaqN3YPcvkdM7-F0J1_Vq5ZOMP6PtQRSfvui6xk7lg/exec";
+  const API_URL =
+    "https://script.google.com/a/macros/student.unsil.ac.id/s/AKfycbxrMVz-Ktoj5-xdpocuOfiMjXk7CaqN3YPcvkdM7-F0J1_Vq5ZOMP6PtQRSfvui6xk7lg/exec";
+
   const EVENT_ID = "PJP2026";
 
   const statusBox = document.getElementById("status");
   const startButton = document.getElementById("start");
-  let scanner;
+  const resetButton = document.getElementById("reset");
+
+  let scanner = null;
   let busy = false;
 
-  startButton.onclick = async () => {
-    try {
-      if (scanner) {
-        try {
+  async function stopScanner() {
+    if (scanner) {
+      try {
+        if (scanner.isScanning) {
           await scanner.stop();
-        } catch (_) {}
+        }
+      } catch (_) {}
+    }
+  }
+
+  async function sendAttendance(qrText) {
+    statusBox.textContent = "QR terbaca. Mengirim absensi...";
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify({
+          kodeQR: qrText,
+          eventId: EVENT_ID
+        }),
+        redirect: "follow"
+      });
+
+      if (!response.ok) {
+        throw new Error("Server merespons HTTP " + response.status);
       }
+
+      const result = await response.json();
+
+      if (result.ok) {
+        statusBox.textContent = result.message;
+      } else {
+        statusBox.textContent =
+          "Absensi gagal: " + (result.message || "Kesalahan server.");
+      }
+    } catch (error) {
+      statusBox.textContent =
+        "Belum dapat memastikan absensi tersimpan. " +
+        "Koneksi ditolak atau respons server tidak dapat dibaca. " +
+        "Detail: " + error.message;
+    } finally {
+      startButton.disabled = false;
+      resetButton.disabled = false;
+    }
+  }
+
+  startButton.onclick = async () => {
+    if (busy) return;
+
+    try {
+      await stopScanner();
 
       scanner = new Html5Qrcode("reader");
       startButton.disabled = true;
+      resetButton.disabled = true;
 
       await scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 230, height: 230 } },
-        async text => {
+        async (text) => {
           if (busy) return;
+
           busy = true;
+          startButton.disabled = true;
+          resetButton.disabled = true;
 
-          try {
-            await scanner.stop();
-          } catch (_) {}
-
-          statusBox.textContent = "QR terbaca. Mengirim absensi...";
-
-          try {
-            await fetch(API_URL, {
-              method: "POST",
-              mode: "no-cors",
-              headers: {
-                "Content-Type": "text/plain;charset=utf-8"
-              },
-              body: JSON.stringify({
-                kodeQR: text,
-                eventId: EVENT_ID
-              })
-            });
-
-            statusBox.textContent =
-              "Permintaan dikirim. Periksa sheet LOG ABSENSI untuk memastikan data masuk.";
-          } catch (error) {
-            statusBox.textContent =
-              "Pengiriman gagal: " + error.message;
-          }
-
-          startButton.disabled = false;
+          await stopScanner();
+          await sendAttendance(text);
         },
         () => {}
       );
 
       statusBox.textContent =
         "Kamera aktif. Arahkan ke QR mahasiswa.";
+      startButton.disabled = false;
+      resetButton.disabled = false;
     } catch (error) {
       statusBox.textContent =
         "Kamera gagal dibuka: " + error.message;
       startButton.disabled = false;
+      resetButton.disabled = false;
     }
   };
 
-  document.getElementById("reset").onclick = async () => {
+  resetButton.onclick = async () => {
+    await stopScanner();
     busy = false;
     startButton.disabled = false;
+    resetButton.disabled = false;
     statusBox.textContent =
       "Tekan Aktifkan Kamera untuk scan berikutnya.";
   };
