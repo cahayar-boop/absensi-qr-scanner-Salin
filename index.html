@@ -22,7 +22,6 @@
       border-radius: 16px;
       box-shadow: 0 3px 15px #0001;
     }
-    h2 { margin-top: 0; }
     button {
       width: 100%;
       border: 0;
@@ -32,9 +31,7 @@
       background: #176b45;
       color: white;
       font-size: 16px;
-      cursor: pointer;
     }
-    button:disabled { opacity: .6; }
     #status {
       margin-top: 16px;
       padding: 12px;
@@ -42,103 +39,53 @@
       background: #eef1ef;
       overflow-wrap: anywhere;
     }
-    .note { color: #555; font-size: 14px; }
   </style>
 </head>
 <body>
 <main>
   <h2>Absensi QR Mahasiswa</h2>
-  <p>Pangjajap 2026 · ID acara PJP2026</p>
-  <p class="note">
-    Gunakan akun Universitas Siliwangi yang memiliki akses.
-  </p>
-
+  <p>Pangjajap 2026 · PJP2026</p>
   <div id="reader"></div>
   <button id="start">Aktifkan Kamera</button>
-  <button id="stop" disabled>Matikan Kamera</button>
+  <button id="reset">Scan Berikutnya</button>
   <div id="status">Scanner belum diaktifkan.</div>
 </main>
 
 <script>
-  const SCRIPT_URL =
-    "https://script.google.com/a/macros/student.unsil.ac.id/s/AKfycbxrMVz-Ktoj5-xdpocuOfiMjXk7CaqN3YPcvkdM7-F0J1_Vq5ZOMP6PtQRSfvui6xk7lg/exec";
-
-  const EVENT_ID = "PJP2026";
-
   const statusBox = document.getElementById("status");
-  const startButton = document.getElementById("start");
-  const stopButton = document.getElementById("stop");
+  let scanner;
+  let busy = false;
 
-  let scanner = null;
-  let running = false;
-  let processing = false;
-
-  startButton.addEventListener("click", startScanner);
-  stopButton.addEventListener("click", stopScanner);
-
-  async function startScanner() {
+  document.getElementById("start").onclick = async () => {
     try {
       scanner = new Html5Qrcode("reader");
-
       await scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 230, height: 230 } },
-        onQrScanned,
+        async text => {
+          if (busy) return;
+          busy = true;
+          statusBox.textContent =
+            "QR terbaca: " + text +
+            ". Pengiriman absensi belum diaktifkan.";
+          try {
+            await scanner.stop();
+          } catch (_) {}
+        },
         () => {}
       );
-
-      running = true;
-      processing = false;
-      startButton.disabled = true;
-      stopButton.disabled = false;
       statusBox.textContent =
         "Kamera aktif. Arahkan ke QR mahasiswa.";
-    } catch (err) {
-      statusBox.textContent =
-        "Gagal membuka kamera: " + err.message;
+    } catch (e) {
+      statusBox.textContent = "Kamera gagal dibuka: " + e.message;
     }
-  }
+  };
 
-  async function stopScanner() {
-    if (scanner && running) {
-      try {
-        await scanner.stop();
-        await scanner.clear();
-      } catch (_) {}
-    }
-
-    running = false;
-    processing = false;
-    startButton.disabled = false;
-    stopButton.disabled = true;
-    statusBox.textContent = "Kamera dimatikan.";
-  }
-
-  async function onQrScanned(decodedText) {
-    if (processing) return;
-    processing = true;
-
+  document.getElementById("reset").onclick = () => {
+    busy = false;
     statusBox.textContent =
-      "QR terbaca. Mengirim data absensi...";
-
-    try {
-      if (scanner && running) {
-        await scanner.stop();
-        running = false;
-      }
-
-      // Jangan menambahkan token rahasia di halaman publik.
-      // Endpoint harus memiliki mekanisme akses yang aman.
-      statusBox.textContent =
-        "QR terbaca, tetapi koneksi POST perlu diuji. " +
-        "Pengiriman belum dapat dinyatakan berhasil.";
-
-    } catch (err) {
-      statusBox.textContent =
-        "Gagal memproses QR: " + err.message;
-      processing = false;
-    }
-  }
+      "Tekan Aktifkan Kamera untuk memulai scan berikutnya.";
+  };
 </script>
 </body>
 </html>
