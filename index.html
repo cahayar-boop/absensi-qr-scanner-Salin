@@ -14,7 +14,6 @@
       padding: 20px;
       color: #202520;
     }
-
     main {
       max-width: 480px;
       margin: auto;
@@ -23,7 +22,6 @@
       border-radius: 16px;
       box-shadow: 0 3px 15px #0001;
     }
-
     button {
       width: 100%;
       border: 0;
@@ -35,12 +33,10 @@
       font-size: 16px;
       cursor: pointer;
     }
-
     button:disabled {
       opacity: 0.6;
       cursor: wait;
     }
-
     #status {
       margin-top: 16px;
       padding: 12px;
@@ -62,8 +58,11 @@
 </main>
 
 <script>
-  const API_URL =
-    "https://script.google.com/a/macros/student.unsil.ac.id/s/AKfycbxrMVz-Ktoj5-xdpocuOfiMjXk7CaqN3YPcvkdM7-F0J1_Vq5ZOMP6PtQRSfvui6xk7lg/exec";
+  const SUPABASE_URL =
+    "https://lhvamrfhnfuubdptouxc.supabase.co";
+
+  const SUPABASE_KEY =
+    "sb_publishable_N8sI5hzMuW61-BGXG8ICLw_nePG-Wau";
 
   const EVENT_ID = "PJP2026";
 
@@ -75,48 +74,57 @@
   let busy = false;
 
   async function stopScanner() {
-    if (scanner) {
+    if (scanner && scanner.isScanning) {
       try {
-        if (scanner.isScanning) {
-          await scanner.stop();
-        }
+        await scanner.stop();
       } catch (_) {}
     }
   }
 
   async function sendAttendance(qrText) {
-    statusBox.textContent = "QR terbaca. Mengirim absensi...";
+    statusBox.textContent = "QR terbaca. Menyimpan absensi...";
+    startButton.disabled = true;
+    resetButton.disabled = true;
 
     try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify({
-          kodeQR: qrText,
-          eventId: EVENT_ID
-        }),
-        redirect: "follow"
-      });
-
-      if (!response.ok) {
-        throw new Error("Server merespons HTTP " + response.status);
-      }
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/rpc/scan_absensi`,
+        {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            p_kode_qr: qrText,
+            p_id_acara: EVENT_ID
+          })
+        }
+      );
 
       const result = await response.json();
 
-      if (result.ok) {
-        statusBox.textContent = result.message;
+      if (!response.ok) {
+        throw new Error(
+          result.message || result.details ||
+          `HTTP ${response.status}`
+        );
+      }
+
+      const data = Array.isArray(result) ? result[0] : result;
+
+      if (data && data.ok) {
+        statusBox.textContent =
+          data.message || "Absensi berhasil dicatat.";
       } else {
         statusBox.textContent =
-          "Absensi gagal: " + (result.message || "Kesalahan server.");
+          "Absensi gagal: " +
+          (data?.message || "QR tidak dikenali atau terjadi kesalahan.");
       }
     } catch (error) {
       statusBox.textContent =
-        "Belum dapat memastikan absensi tersimpan. " +
-        "Koneksi ditolak atau respons server tidak dapat dibaca. " +
-        "Detail: " + error.message;
+        "Gagal mengirim absensi. " + error.message;
     } finally {
       startButton.disabled = false;
       resetButton.disabled = false;
@@ -127,11 +135,11 @@
     if (busy) return;
 
     try {
-      await stopScanner();
-
-      scanner = new Html5Qrcode("reader");
       startButton.disabled = true;
       resetButton.disabled = true;
+
+      await stopScanner();
+      scanner = new Html5Qrcode("reader");
 
       await scanner.start(
         { facingMode: "environment" },
@@ -140,9 +148,6 @@
           if (busy) return;
 
           busy = true;
-          startButton.disabled = true;
-          resetButton.disabled = true;
-
           await stopScanner();
           await sendAttendance(text);
         },
@@ -151,8 +156,6 @@
 
       statusBox.textContent =
         "Kamera aktif. Arahkan ke QR mahasiswa.";
-      startButton.disabled = false;
-      resetButton.disabled = false;
     } catch (error) {
       statusBox.textContent =
         "Kamera gagal dibuka: " + error.message;
