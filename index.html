@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Absensi QR Mahasiswa</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+      color: #222;
+    }
+    main {
+      max-width: 480px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+    }
+    h2 { margin-top: 0; }
+    button {
+      padding: 12px;
+      width: 100%;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 8px;
+      background: #176b45;
+      color: white;
+      font-size: 16px;
+    }
+    #reader { margin-top: 16px; }
+    #status {
+      margin-top: 16px;
+      padding: 12px;
+      background: #eee;
+      border-radius: 8px;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h2>Absensi QR Mahasiswa</h2>
+  <p>Scanner QR Pangjajap 2026</p>
+  <div id="reader"></div>
+  <button id="start">Aktifkan Kamera</button>
+  <div id="status">Scanner belum diaktifkan.</div>
+</main>
+
+<script>
+  const statusBox = document.getElementById("status");
+  let scanner = null;
+  let processing = false;
+
+  document.getElementById("start").onclick = async () => {
+    try {
+      if (!window.isSecureContext) {
+        throw new Error("Buka halaman melalui GitHub Pages HTTPS.");
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Browser tidak mendukung akses kamera.");
+      }
+
+      scanner = new Html5Qrcode("reader");
+
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 230, height: 230 } },
+        async (decodedText) => {
+          if (processing) return;
+          processing = true;
+          statusBox.textContent =
+            "QR terbaca. Pengiriman ke sistem absensi belum dihubungkan.";
+          try {
+            await scanner.stop();
+          } catch (_) {}
+        },
+        () => {}
+      );
+
+      statusBox.textContent = "Kamera aktif. Arahkan ke QR mahasiswa.";
+    } catch (error) {
+      statusBox.textContent = "Gagal: " + error.message;
+    }
+  };
+</script>
+</body>
+</html>
